@@ -1,11 +1,13 @@
 check "tzdb_version_latest" {
   assert {
-    condition     = sort([local.tzdb_latest_available_version, local.tzdb_version])[0] == local.tzdb_latest_available_version
+    condition     = local.enable_retrieve ? sort([local.tzdb_latest_available_version, local.tzdb_version])[0] == local.tzdb_latest_available_version : true
     error_message = "Newer version of Time Zone Database is available."
   }
 }
 
 data "http" "tzdb_versions" {
+  count = local.enable_retrieve ? 1 : 0
+
   request_headers = {
     Accept = "application/text"
   }
@@ -20,6 +22,8 @@ data "http" "tzdb_versions" {
 }
 
 data "http" "tzdb" {
+  count = local.enable_retrieve ? 1 : 0
+
   request_headers = {
     Accept = "application/text"
   }
@@ -32,22 +36,53 @@ data "http" "tzdb" {
     }
 
     precondition {
-      condition = can(index(local.tzdb_available_versions, local.tzdb_version))
+      condition     = can(index(local.tzdb_available_versions, local.tzdb_version))
       error_message = "Variable tzdb_version is set to an invalid version."
     }
   }
 }
 
+resource "local_file" "tzdb" {
+  count = var.enable_self_update ? 1 : 0
+
+  content         = local.tzdb
+  file_permission = "0644"
+  filename        = local.tzdb_file
+}
+
+resource "local_file" "tzdb_version" {
+  count = var.enable_self_update ? 1 : 0
+
+  content         = "${local.tzdb_version}\n"
+  file_permission = "0644"
+  filename        = local.tzdb_version_file
+}
+
 locals {
-  tzdb_available_versions = regexall(
-    "(?m)^<tr><td><a href=\"tzdb-(?P<version>[^\"]+)/\"",
-    data.http.tzdb_versions.response_body,
-  ).*.version
-  tzdb_comment = "# Retrieved from ${local.tzdb_url} with comments stripped by https://github.com/robzr/terraform-tzdb/retrieve"
-  tzdb_latest_available_version = local.tzdb_available_versions[length(local.tzdb_available_versions) - 1]
+  enable_retrieve = var.enable_retrieve || var.enable_self_update
+  tzdb            = local.enable_retrieve ? data.http.tzdb[0].response_body : file(local.tzdb_file)
+  tzdb_available_versions = (
+    local.enable_retrieve ?
+    regexall(
+      "(?m)^<tr><td><a href=\"tzdb-(?P<version>[^\"]+)/\"",
+      data.http.tzdb_versions[0].response_body,
+    ).*.version :
+    []
+  )
+  tzdb_file = "${path.module}/zone1970.tab"
+  tzdb_latest_available_version = (
+    length(local.tzdb_available_versions) > 0 ?
+    local.tzdb_available_versions[length(local.tzdb_available_versions) - 1] :
+    null
+  )
   tzdb_url = format(
     var.tzdb_url,
     local.tzdb_version,
   )
-  tzdb_version = coalesce(var.tzdb_version, local.tzdb_latest_available_version)
+  tzdb_version = (
+    local.enable_retrieve ?
+    coalesce(var.tzdb_version, local.tzdb_latest_available_version) :
+    chomp(file(local.tzdb_version_file))
+  )
+  tzdb_version_file = "${local.tzdb_file}-version"
 }
