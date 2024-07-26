@@ -8,6 +8,11 @@ variable "enable_self_update" {
   description = "Use with caution - for module maintenance, updates zone1970.tab with retrieved version."
 }
 
+variable "iso3166_url" {
+  default     = "https://data.iana.org/time-zones/tzdb-%s/iso3166.tab"
+  description = "URL referencing ISO-3166 country map in in iso3166 tab format (%s == -tzdb_version) (used with var.enable_retrieve)."
+}
+
 variable "tzdb_url" {
   default     = "https://data.iana.org/time-zones/tzdb-%s/zone1970.tab"
   description = "URL referencing TZDB in zone1970 tab format (%s == -tzdb_version) (used with var.enable_retrieve)."

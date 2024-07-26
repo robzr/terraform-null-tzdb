@@ -1,4 +1,14 @@
-output "tzdb" {
+output "country_codes" {
+  description = "Map object of ISO-3166 table, key is Country Code (ex: US), value is name."
+  value = merge([
+    for country in regexall(
+      "(?m)^(?P<code>[^#\t]+)\t(?P<name>[^\n]*)$",
+      local.iso3166,
+    ) : { (country.code) = country.name }
+  ]...)
+}
+
+output "time_zones" {
   description = "Map object of Time Zone Database, key is Time Zone name (ex: America/Los_Angeles)."
   value = merge([
     for tz in regexall(
