@@ -1,22 +1,29 @@
 check "tzdb_version_latest" {
   assert {
-    condition     = local.enable_retrieve ? sort([local.tzdb_latest_available_version, local.tzdb_version])[0] == local.tzdb_latest_available_version : true
+    condition = (
+      local.enable_retrieve ?
+      sort([
+        local.tzdb_latest_available_version,
+        local.tzdb_version,
+      ])[0] == local.tzdb_latest_available_version :
+      true
+    )
     error_message = "Newer version of Time Zone Database is available."
   }
 }
 
-data "http" "tzdb_versions" {
+data "http" "iso3166" {
   count = local.enable_retrieve ? 1 : 0
 
   request_headers = {
     Accept = "application/text"
   }
-  url = var.tzdb_versions_url
+  url = local.iso3166_url
 
   lifecycle {
     postcondition {
       condition     = self.status_code == 200
-      error_message = "Error returned when retrieving list of Time Zone Database versions."
+      error_message = "Error returned when retrieving ISO-3166 Database."
     }
   }
 }
@@ -42,6 +49,30 @@ data "http" "tzdb" {
   }
 }
 
+data "http" "tzdb_versions" {
+  count = local.enable_retrieve ? 1 : 0
+
+  request_headers = {
+    Accept = "application/text"
+  }
+  url = var.tzdb_versions_url
+
+  lifecycle {
+    postcondition {
+      condition     = self.status_code == 200
+      error_message = "Error returned when retrieving list of Time Zone Database versions."
+    }
+  }
+}
+
+resource "local_file" "iso3166" {
+  count = var.enable_self_update ? 1 : 0
+
+  content         = local.iso3166
+  file_permission = "0644"
+  filename        = local.iso3166_file
+}
+
 resource "local_file" "tzdb" {
   count = var.enable_self_update ? 1 : 0
 
@@ -60,7 +91,13 @@ resource "local_file" "tzdb_version" {
 
 locals {
   enable_retrieve = var.enable_retrieve || var.enable_self_update
-  tzdb            = local.enable_retrieve ? data.http.tzdb[0].response_body : file(local.tzdb_file)
+  iso3166         = local.enable_retrieve ? data.http.iso3166[0].response_body : file(local.iso3166_file)
+  iso3166_file    = "${path.module}/iso3166.tab"
+  iso3166_url = format(
+    var.iso3166_url,
+    local.tzdb_version,
+  )
+  tzdb = local.enable_retrieve ? data.http.tzdb[0].response_body : file(local.tzdb_file)
   tzdb_available_versions = (
     local.enable_retrieve ?
     regexall(
