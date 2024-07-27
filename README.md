@@ -43,8 +43,8 @@ locals {
   #   ])
   # }
 }
-## Online Database Retrieval
 ```
+## Online Database Retrieval
 If a specific older version, or the latest version of TZDB at runtime is
 necessary, there is also functionality to dynamically retrieve the TZDB using an
 http data lookup. Note that any resources whose existence depends on the output
